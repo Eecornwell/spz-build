@@ -577,6 +577,7 @@ GaussianCloud loadSplatFromPly(const std::string &filename) {
     in.close();
     return {};
   }
+
   std::string line;
   std::getline(in, line);
   if (line != "ply") {
@@ -584,29 +585,56 @@ GaussianCloud loadSplatFromPly(const std::string &filename) {
     in.close();
     return {};
   }
+
   std::getline(in, line);
   if (line != "format binary_little_endian 1.0") {
     SpzLog("[SPZ ERROR] %s: unsupported .ply format", filename.c_str());
     in.close();
     return {};
   }
-  std::getline(in, line);
-  if (line.find("element vertex ") != 0) {
-    SpzLog("[SPZ ERROR] %s: missing vertex count", filename.c_str());
-    in.close();
-    return {};
+
+  // Read lines until we find the vertex count, skipping comments
+  int numPoints = -1;
+  while (std::getline(in, line)) {
+      // Skip comment lines
+      if (line.substr(0, 7) == "comment") {
+          continue;
+      }
+      
+      // Check if line starts with "element vertex"
+      if (line.find("element vertex ") == 0) {
+          SpzLog("[SPZ DEBUG] Found vertex line: %s", line.c_str());
+          try {
+              numPoints = std::stoi(line.substr(14));
+              SpzLog("[SPZ DEBUG] Parsed vertex count: %d", numPoints);
+              break;
+          } catch (const std::exception& e) {
+              SpzLog("[SPZ ERROR] Failed to parse vertex count: %s", e.what());
+              in.close();
+              return {};
+          }
+      }
   }
-  int numPoints = std::stoi(line.substr(std::strlen("element vertex ")));
+
   if (numPoints <= 0 || numPoints > 10 * 1024 * 1024) {
-    SpzLog("[SPZ ERROR] %s: invalid vertex count: %d", filename.c_str(), numPoints);
-    in.close();
-    return {};
+      SpzLog("[SPZ ERROR] %s: invalid vertex count: %d", filename.c_str(), numPoints);
+      in.close();
+      return {};
   }
 
   SpzLog("[SPZ] Loading %d points", numPoints);
   std::unordered_map<std::string, int> fields;  // name -> index
+  
+  // Read property lines until end_header, skipping comments
   for (int i = 0;; i++) {
     std::getline(in, line);
+    
+    // Skip comment lines
+    if (line.substr(0, 7) == "comment") {
+      i--; // Don't increment the field index for comments
+      continue;
+    }
+    
     if (line == "end_header")
       break;
 
@@ -618,6 +646,7 @@ GaussianCloud loadSplatFromPly(const std::string &filename) {
     std::string name = line.substr(std::strlen("property float "));
     fields[name] = i;
   }
+
 
   // Returns the index for a given field name, ensuring the name exists.
   const auto index = [&fields](const std::string &name) {
