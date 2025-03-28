@@ -3,7 +3,6 @@ forked from [stytim/spz](https://github.com/stytim/spz/tree/main) -- Ubuntu exec
 
 ## How to Build on Ubuntu (currently only supported, tested with Ubuntu 22.04)
 ### Install Dependencies
-Built with the following dependencies:
 ```bash
 sudo apt install gcc-11 g++-11 -y
 ```
